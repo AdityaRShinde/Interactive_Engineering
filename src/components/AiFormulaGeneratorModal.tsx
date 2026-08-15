@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Formula, SubjectCategory, Variable } from '../types';
 import { MathView } from './MathView';
+import { Engineering2DLab } from './simulations/Engineering2DLab';
 
 interface AiFormulaGeneratorModalProps {
   isOpen: boolean;
@@ -47,6 +48,14 @@ export const AiFormulaGeneratorModal: React.FC<AiFormulaGeneratorModalProps> = (
   const [editLatex, setEditLatex] = useState<string>('');
   const [editPlain, setEditPlain] = useState<string>('');
   const [editVariables, setEditVariables] = useState<Variable[]>([]);
+
+  // Stage 3: Simulation generation & Interactive Lab preview
+  const [isGeneratingSim, setIsGeneratingSim] = useState<boolean>(false);
+  const [generatedSimHtml, setGeneratedSimHtml] = useState<string | null>(null);
+  const [simGenerationError, setSimGenerationError] = useState<string | null>(null);
+  const [simPreviewValues, setSimPreviewValues] = useState<Record<string, number>>({});
+  const [simPreviewTarget, setSimPreviewTarget] = useState<string | undefined>(undefined);
+  const [simPreviewMode, setSimPreviewMode] = useState<'vector_fbd' | 'html_code'>('vector_fbd');
 
   // Trigger AI Synthesis API
   const handleStartGeneration = async (queryText?: string, subjectChoice?: SubjectCategory | 'auto') => {
@@ -93,6 +102,12 @@ export const AiFormulaGeneratorModal: React.FC<AiFormulaGeneratorModalProps> = (
         setEditPlain(f.formulaPlain || '');
         setEditVariables(f.variables || []);
         
+        const initialVals: Record<string, number> = {};
+        (f.variables || []).forEach(v => {
+          initialVals[v.symbol] = v.defaultValue;
+        });
+        setSimPreviewValues(initialVals);
+
         if (f.thinkingTrace && Array.isArray(f.thinkingTrace)) {
           setThinkingSteps(f.thinkingTrace);
         }
@@ -108,6 +123,25 @@ export const AiFormulaGeneratorModal: React.FC<AiFormulaGeneratorModalProps> = (
       clearTimeout(timer2);
       clearTimeout(timer3);
       setIsGenerating(false);
+    }
+  };
+
+  // Live calculation for preview
+  const getPreviewCalcValue = (f: Formula, vals: Record<string, number>): number => {
+    try {
+      if (f.calculationFn) {
+        return f.calculationFn(vals);
+      }
+      if (f.simulation?.formulaCode) {
+        let code = f.simulation.formulaCode;
+        Object.entries(vals).forEach(([k, v]) => {
+          code = code.replace(new RegExp(`\\b${k}\\b`, 'g'), String(v));
+        });
+        return Function(`"use strict"; return (${code})`)();
+      }
+      return Object.values(vals)[0] || 0;
+    } catch {
+      return 0;
     }
   };
 
@@ -160,15 +194,70 @@ export const AiFormulaGeneratorModal: React.FC<AiFormulaGeneratorModalProps> = (
 
   const handleFinalizeAndLaunch = () => {
     if (!draftFormula) return;
+
+    // Sync simulation customInputs to reflect any variable edits from Step 1
+    const resolvedVars = editVariables.length > 0 ? editVariables : draftFormula.variables;
+    const syncedCustomInputs = resolvedVars.map(v => ({
+      id: v.symbol,
+      label: v.name,
+      symbol: v.symbol,
+      unit: v.unit || '',
+      min: v.min ?? 0,
+      max: v.max ?? 100,
+      step: v.step ?? 1,
+      defaultValue: v.defaultValue ?? 10,
+    }));
+
     const finalFormula: Formula = {
       ...draftFormula,
       name: editName || draftFormula.name,
       formulaLatex: editLatex || draftFormula.formulaLatex,
       formulaPlain: editPlain || draftFormula.formulaPlain,
-      variables: editVariables.length > 0 ? editVariables : draftFormula.variables
+      variables: resolvedVars,
+      // Sync simulation config so the lab uses the verified values
+      simulation: {
+        ...draftFormula.simulation,
+        customInputs: syncedCustomInputs,
+        primaryVariable: resolvedVars[0]?.symbol ?? draftFormula.simulation?.primaryVariable,
+        secondaryVariable: resolvedVars[1]?.symbol ?? draftFormula.simulation?.secondaryVariable,
+      },
+      // Carry AI-generated custom simulation HTML into the lab (if generated)
+      customSimHtml: generatedSimHtml ?? draftFormula.customSimHtml ?? undefined,
     };
     onFormulaGenerated(finalFormula);
     onClose();
+  };
+
+
+  // Stage 3: Generate unique simulation
+  const handleGenerateSimulation = async () => {
+    if (!draftFormula) return;
+    setIsGeneratingSim(true);
+    setSimGenerationError(null);
+    setGeneratedSimHtml(null);
+    try {
+      const resp = await fetch('/api/generate-simulation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          formulaName: editName || draftFormula.name,
+          formulaPlain: editPlain || draftFormula.formulaPlain,
+          variables: editVariables.length > 0 ? editVariables : draftFormula.variables,
+          subject: draftFormula.subject,
+          realWorldApplication: draftFormula.realWorldApplication,
+        }),
+      });
+      const data = await resp.json();
+      if (data.html) {
+        setGeneratedSimHtml(data.html);
+      } else {
+        throw new Error(data.error || 'No simulation HTML returned');
+      }
+    } catch (err: any) {
+      setSimGenerationError(err.message || 'Failed to generate simulation');
+    } finally {
+      setIsGeneratingSim(false);
+    }
   };
 
   const handleResetModal = () => {
@@ -580,37 +669,170 @@ export const AiFormulaGeneratorModal: React.FC<AiFormulaGeneratorModalProps> = (
               <div className="flex items-center justify-between">
                 <span className="text-xs font-black uppercase tracking-wider text-[#111827] flex items-center gap-1.5">
                   <Sliders className="w-4 h-4 text-green-700" />
-                  Verify 2D Physics Lab Simulation & Presets
+                  Simulation Verification & Interactive Lab
                 </span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-green-100 text-green-800 border border-green-300">
-                  Step 3 of 3: Ready to Launch
+                  Step 3 of 3: Modular SVG Simulation
                 </span>
               </div>
 
-              {/* Simulation Engine Diagnostics & Archetype Card */}
-              <div className="bg-[#ffffff] p-4 rounded-2xl border-2 border-[#2b2b2b] shadow-[2px_2px_0px_#2b2b2b] space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] font-bold text-[#6b7280] uppercase tracking-wider">Physics Simulation Engine</span>
-                    <div className="text-sm font-black text-[#111827]">
-                      {draftFormula.simulation?.type || 'Intelligent Domain-Adaptive Physical Canvas'}
+              {/* Simulation Mode Selector */}
+              <div className="flex items-center gap-2 border-b border-[#e5e7eb] pb-2">
+                <button
+                  type="button"
+                  onClick={() => setSimPreviewMode('vector_fbd')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-all cursor-pointer ${
+                    simPreviewMode === 'vector_fbd'
+                      ? 'bg-[#2b2b2b] text-white border-[#2b2b2b] shadow-[2px_2px_0px_#000]'
+                      : 'bg-white text-[#4b5563] border-[#d1d5db] hover:bg-[#faf8f0]'
+                  }`}
+                >
+                  📐 Modular Vector Simulation (Free-Body Diagram)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSimPreviewMode('html_code')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-all cursor-pointer flex items-center gap-1.5 ${
+                    simPreviewMode === 'html_code'
+                      ? 'bg-[#2b2b2b] text-white border-[#2b2b2b] shadow-[2px_2px_0px_#000]'
+                      : 'bg-white text-[#4b5563] border-[#d1d5db] hover:bg-[#faf8f0]'
+                  }`}
+                >
+                  <Compass className="w-3.5 h-3.5 text-[#d8573f]" />
+                  <span>Custom HTML Code Canvas</span>
+                  {generatedSimHtml && <span className="w-2 h-2 rounded-full bg-green-500"></span>}
+                </button>
+              </div>
+
+              {/* Vector Simulation Canvas View */}
+              {simPreviewMode === 'vector_fbd' && (
+                <div className="bg-[#ffffff] p-4 rounded-2xl border-2 border-[#2b2b2b] shadow-[2px_2px_0px_#2b2b2b] space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-[#6b7280] uppercase tracking-wider">Modular 2D Physics Vector Canvas</span>
+                      <div className="text-sm font-black text-[#111827]">
+                        {editName || draftFormula.name}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-800 border border-blue-200 rounded">
+                        Output: {getPreviewCalcValue(draftFormula, simPreviewValues).toFixed(2)} {draftFormula.simulation?.outputUnit || ''}
+                      </span>
                     </div>
                   </div>
-                  <span className="px-2.5 py-1 bg-[#ffdd00] border border-[#2b2b2b] rounded-full text-xs font-black text-[#000000] shadow-2xs">
-                    ⚡ Live 2D Kinematics
-                  </span>
-                </div>
 
-                {/* SVG Visual Representation Preview */}
-                <div className="bg-[#faf8f0] p-3 rounded-xl border border-[#2b2b2b] text-center">
-                  <div className="text-xs font-bold text-[#111827] mb-1">
-                    Sensor Output: <span className="text-[#d8573f]">{draftFormula.simulation?.outputLabel}</span> ({draftFormula.simulation?.outputUnit})
+                  {/* Embedded 2D Lab Vector Canvas */}
+                  <div className="h-[280px] w-full rounded-2xl overflow-hidden border-2 border-[#2b2b2b] bg-[#faf8f0]">
+                    <Engineering2DLab
+                      formula={draftFormula}
+                      values={simPreviewValues}
+                      onValueChange={(k, v) => setSimPreviewValues(prev => ({ ...prev, [k]: v }))}
+                      calculatedValue={getPreviewCalcValue(draftFormula, simPreviewValues)}
+                      onReset={() => {
+                        const resetVals: Record<string, number> = {};
+                        (draftFormula.variables || []).forEach(v => {
+                          resetVals[v.symbol] = v.defaultValue;
+                        });
+                        setSimPreviewValues(resetVals);
+                      }}
+                      activeRearrangementTarget={simPreviewTarget}
+                    />
                   </div>
-                  <p className="text-[11px] text-[#4b5563]">
-                    The 2D canvas generates real-time vector forces, particle streamlines, and dynamic dimension annotations scaled dynamically to user sliders.
-                  </p>
+
+                  {/* Interactive Parameter Sliders in Step 3 */}
+                  <div className="space-y-2 pt-2 border-t border-[#e5e7eb]">
+                    <div className="text-[11px] font-bold text-[#111827] uppercase tracking-wider flex items-center justify-between">
+                      <span>Live Simulation Parameter Sliders:</span>
+                      <span className="text-[10px] text-[#6b7280] font-normal">Directly linked to SVG vectors</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {(draftFormula.variables || editVariables).map((v) => {
+                        const curVal = simPreviewValues[v.symbol] ?? v.defaultValue;
+                        return (
+                          <div key={v.symbol} className="p-2.5 bg-[#faf8f0] border border-[#2b2b2b] rounded-xl space-y-1.5 shadow-2xs">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-bold text-[#111827]">{v.name} ({v.symbol})</span>
+                              <span className="font-mono-tech font-bold text-[#d8573f]">
+                                {curVal} {v.unit}
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min={v.min ?? 0}
+                              max={v.max ?? 100}
+                              step={v.step ?? 1}
+                              value={curVal}
+                              onChange={(e) => {
+                                const num = parseFloat(e.target.value);
+                                setSimPreviewValues(prev => ({ ...prev, [v.symbol]: num }));
+                              }}
+                              className="w-full h-1.5 bg-[#e5e7eb] rounded-lg appearance-none cursor-pointer accent-[#d8573f]"
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Custom HTML Code View */}
+              {simPreviewMode === 'html_code' && (
+                <div className="bg-[#ffffff] p-4 rounded-2xl border-2 border-[#2b2b2b] shadow-[2px_2px_0px_#2b2b2b] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-[#6b7280] uppercase tracking-wider">AI Custom HTML Code Engine</span>
+                      <div className="text-sm font-black text-[#111827]">
+                        {editName || draftFormula.name}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleGenerateSimulation}
+                      disabled={isGeneratingSim}
+                      className="flex items-center gap-2 px-4 py-2 bg-[#ffdd00] hover:bg-[#ffe633] border-2 border-[#2b2b2b] rounded-xl text-xs font-black text-[#000000] shadow-[2px_2px_0px_#2b2b2b] transition-all active:translate-x-0.5 active:translate-y-0.5 active:shadow-none disabled:opacity-60 cursor-pointer"
+                    >
+                      <Compass className={`w-4 h-4 ${isGeneratingSim ? 'animate-spin' : ''}`} />
+                      <span>{isGeneratingSim ? 'Generating...' : generatedSimHtml ? '🔄 Regenerate HTML Code' : '🎮 Generate HTML Simulation'}</span>
+                    </button>
+                  </div>
+
+                  {simGenerationError && (
+                    <div className="bg-red-50 border border-red-300 rounded-xl p-3 text-xs text-red-700 font-bold">
+                      ⚠ {simGenerationError}
+                    </div>
+                  )}
+
+                  {isGeneratingSim && (
+                    <div className="flex items-center gap-2 text-xs text-[#6b7280] bg-[#faf8f0] p-3 rounded-xl border border-[#e5e7eb] animate-pulse">
+                      <Wand2 className="w-4 h-4 text-[#d8573f] animate-spin" />
+                      <span>AI is synthesizing custom HTML simulation... This may take 10-15 seconds.</span>
+                    </div>
+                  )}
+
+                  {generatedSimHtml && !isGeneratingSim && (
+                    <div className="space-y-2">
+                      <div className="border-2 border-[#2b2b2b] rounded-xl overflow-hidden shadow-[2px_2px_0px_#2b2b2b]">
+                        <iframe
+                          srcDoc={generatedSimHtml}
+                          title="Formula Simulation Preview"
+                          className="w-full"
+                          style={{ height: '300px', border: 'none', backgroundColor: '#1a1a2e' }}
+                          sandbox="allow-scripts allow-same-origin"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {!generatedSimHtml && !isGeneratingSim && !simGenerationError && (
+                    <div className="bg-[#faf8f0] border border-dashed border-[#2b2b2b] rounded-xl p-6 text-center text-[11px] text-[#6b7280]">
+                      <Compass className="w-8 h-8 mx-auto mb-2 text-[#d8573f] opacity-40" />
+                      <p>Optional: Click <strong>Generate HTML Simulation</strong> if you want an external web animation.</p>
+                      <p className="mt-1 text-[10px]">The Modular SVG Vector simulation is already active and ready to use!</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Presets Preview */}
               <div className="space-y-2">
@@ -696,14 +918,22 @@ export const AiFormulaGeneratorModal: React.FC<AiFormulaGeneratorModalProps> = (
               )}
 
               {activeStep === 3 && (
-                <button
-                  type="button"
-                  onClick={handleFinalizeAndLaunch}
-                  className="px-6 py-2 bg-[#ffdd00] hover:bg-[#ffe633] text-[#000000] border-2 border-[#2b2b2b] rounded-xl text-xs font-black flex items-center gap-2 shadow-[2px_2px_0px_#000000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  <span>Confirm & Add to Interactive Lab 🚀</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  {generatedSimHtml && (
+                    <span className="text-[10px] text-green-700 font-bold flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Simulation verified
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleFinalizeAndLaunch}
+                    className="px-6 py-2 bg-[#ffdd00] hover:bg-[#ffe633] text-[#000000] border-2 border-[#2b2b2b] rounded-xl text-xs font-black flex items-center gap-2 shadow-[2px_2px_0px_#000000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>{generatedSimHtml ? 'Confirm & Add to Interactive Lab 🚀' : 'Skip Simulation & Add to Lab'}</span>
+                  </button>
+                </div>
               )}
             </>
           )}

@@ -46,10 +46,16 @@ export const InteractiveLabModal: React.FC<InteractiveLabModalProps> = ({
   
   // Tabs for the Right Panel / Viewer
   const [activeTab, setActiveTab] = useState<'simulation' | 'graph' | 'theory' | 'practice' | 'definitions' | 'youtube' | 'whatif'>('simulation');
+  const [derivationExpanded, setDerivationExpanded] = useState<boolean>(true);
 
   // Rearrangement mode
   const [activeRearrangementIndex, setActiveRearrangementIndex] = useState<number>(-1);
   const [calculatorInputs, setCalculatorInputs] = useState<Record<string, number>>({});
+  const [useCustomSim, setUseCustomSim] = useState<boolean>(true);
+
+  useEffect(() => {
+    setUseCustomSim(!!formula?.customSimHtml);
+  }, [formula?.id, formula?.customSimHtml]);
   
   // Track last modified variable and result animation pulse
   const [lastChangedVar, setLastChangedVar] = useState<string | null>(null);
@@ -510,7 +516,8 @@ export const InteractiveLabModal: React.FC<InteractiveLabModalProps> = ({
 
   if (!isOpen || !formula) return null;
 
-  const currentInputs = formula.simulation?.customInputs || formula.variables?.map(v => ({
+  // Base inputs from formula definition
+  const baseInputs = formula.simulation?.customInputs || formula.variables?.map(v => ({
     id: v.symbol,
     label: v.name,
     symbol: v.symbol,
@@ -520,6 +527,29 @@ export const InteractiveLabModal: React.FC<InteractiveLabModalProps> = ({
     step: v.step ?? 1,
     defaultValue: v.defaultValue ?? 10
   })) || [];
+
+  // When a rearrangement is active, show only its required inputs as sliders
+  const currentInputs = useMemo(() => {
+    if (!activeRearrangement || !activeRearrangement.requiredInputs?.length) {
+      return baseInputs;
+    }
+    return activeRearrangement.requiredInputs.map(sym => {
+      // Try to find full variable metadata
+      const fromBase = baseInputs.find(b => b.symbol === sym || b.id === sym);
+      const fromVars = formula.variables?.find(v => v.symbol === sym);
+      const meta = fromBase || fromVars;
+      return {
+        id: sym,
+        label: meta?.label || meta?.name || sym,
+        symbol: sym,
+        unit: (meta as any)?.unit || '',
+        min: (meta as any)?.min ?? 0,
+        max: (meta as any)?.max ?? 1000,
+        step: (meta as any)?.step ?? 1,
+        defaultValue: (meta as any)?.defaultValue ?? calculatorInputs[sym] ?? 10
+      };
+    });
+  }, [activeRearrangement, baseInputs, formula.variables, calculatorInputs]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/65 backdrop-blur-sm overflow-hidden animate-in fade-in duration-200">
@@ -688,66 +718,26 @@ export const InteractiveLabModal: React.FC<InteractiveLabModalProps> = ({
                     ))}
                   </div>
 
-                  {/* Rearrangement Active Info Box */}
+                  {/* Rearrangement Active Info Box (compact, no extra inputs — sliders handle it) */}
                   {activeRearrangement && (
-                    <div className="bg-[#fff5eb] p-3 rounded-xl border border-[#f8c4b8] space-y-2.5 animate-in fade-in duration-200">
+                    <div className="bg-[#fff5eb] p-3 rounded-xl border border-[#f8c4b8] space-y-2 animate-in fade-in duration-200">
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-xs text-[#d8573f]">
-                          Target: {activeRearrangement.targetName} ({activeRearrangement.targetSymbol})
+                          Solving for: {activeRearrangement.targetName} ({activeRearrangement.targetSymbol})
                         </span>
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-white border border-[#f8c4b8] font-bold text-[#d8573f]">
-                          {activeRearrangement.resultUnit}
+                          Result unit: {activeRearrangement.resultUnit}
                         </span>
                       </div>
-
                       <div className="bg-white p-2 rounded-lg border border-[#f8c4b8] text-center">
                         <MathView latex={activeRearrangement.latex} block />
                       </div>
-
                       <p className="text-[11px] text-[#6b7280] leading-relaxed">
                         {activeRearrangement.description}
                       </p>
-
-                      {/* Solved Target Readout in Rearrangement Box */}
-                      <div className="bg-white p-2.5 rounded-xl border border-[#f8c4b8] flex items-center justify-between shadow-2xs">
-                        <span className="text-xs font-bold text-[#6b7280]">
-                          Solved {activeRearrangement.targetSymbol}:
-                        </span>
-                        <span className="font-mono-tech font-black text-base text-[#d8573f]">
-                          {typeof solvedRearrangementValue === 'number'
-                            ? solvedRearrangementValue.toLocaleString(undefined, { maximumFractionDigits: 4 })
-                            : solvedRearrangementValue} {activeRearrangement.resultUnit}
-                        </span>
+                      <div className="text-[10px] font-bold text-[#0369a1] bg-blue-50 px-2 py-1 rounded-lg border border-blue-200">
+                        ⬇ Use the sliders below to adjust inputs for this rearrangement
                       </div>
-
-                      {/* Required inputs for Rearrangement */}
-                      {activeRearrangement.requiredInputs && activeRearrangement.requiredInputs.length > 0 && (
-                        <div className="space-y-2 pt-1 border-t border-[#f8c4b8]/50">
-                          <div className="text-[10px] font-bold uppercase text-[#6b7280]">
-                            Rearrangement Inputs:
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            {activeRearrangement.requiredInputs.map((sym) => {
-                              const vItem = formula.variables?.find(v => v.symbol === sym);
-                              const curVal = calculatorInputs[sym] ?? (interactiveValues[sym] ?? (vItem?.defaultValue ?? 10));
-                              return (
-                                <div key={sym} className="bg-white p-2 rounded-lg border border-[#e5e7eb] space-y-1">
-                                  <div className="flex items-center justify-between text-[11px]">
-                                    <span className="font-bold font-mono-tech text-[#111827]">{sym}</span>
-                                    <span className="text-[10px] text-[#6b7280]">{vItem?.unit || ''}</span>
-                                  </div>
-                                  <input
-                                    type="number"
-                                    value={curVal}
-                                    onChange={(e) => handleRearrangementInputChange(sym, parseFloat(e.target.value) || 0)}
-                                    className="w-full px-2 py-1 bg-[#faf8f0] border border-[#e5e7eb] rounded text-xs font-mono-tech font-bold focus:outline-none focus:border-[#d8573f]"
-                                  />
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
@@ -775,10 +765,21 @@ export const InteractiveLabModal: React.FC<InteractiveLabModalProps> = ({
 
                 <div className="space-y-3">
                   {currentInputs.map((input) => {
-                    const curVal = interactiveValues[input.id] ?? input.defaultValue;
+                    // When rearrangement is active, read/write from calculatorInputs; else from interactiveValues
+                    const curVal = activeRearrangement
+                      ? (calculatorInputs[input.id] ?? input.defaultValue)
+                      : (interactiveValues[input.id] ?? input.defaultValue);
                     const curUnit = selectedUnits[input.id] || input.unit;
                     const isHighlighted = lastChangedVar === input.id;
                     const availableUnits = getAvailableUnits(input.unit);
+
+                    const handleChange = (val: number) => {
+                      if (activeRearrangement) {
+                        handleRearrangementInputChange(input.id, val);
+                      } else {
+                        handleSliderChange(input.id, val);
+                      }
+                    };
 
                     return (
                       <div 
@@ -786,12 +787,16 @@ export const InteractiveLabModal: React.FC<InteractiveLabModalProps> = ({
                         className={`p-3 rounded-2xl border-2 transition-all duration-200 ${
                           isHighlighted 
                             ? 'bg-[#fffdf0] border-[#d8573f] shadow-[2px_2px_0px_#d8573f]' 
+                            : activeRearrangement
+                            ? 'bg-[#fff5eb] border-[#f8c4b8] shadow-[2px_2px_0px_#f8c4b8]'
                             : 'bg-[#faf8f0] border-[#2b2b2b] shadow-[2px_2px_0px_#2b2b2b]'
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2 mb-1.5">
                           <label className="text-xs font-bold text-[#111827] flex items-center gap-1.5">
-                            <span className="w-5 h-5 rounded-md bg-white border border-[#2b2b2b] flex items-center justify-center font-mono-tech text-[11px] font-bold">
+                            <span className={`w-5 h-5 rounded-md border flex items-center justify-center font-mono-tech text-[11px] font-bold ${
+                              activeRearrangement ? 'bg-[#fff5eb] border-[#f8c4b8] text-[#d8573f]' : 'bg-white border-[#2b2b2b]'
+                            }`}>
                               {input.symbol}
                             </span>
                             <span>{input.label}</span>
@@ -802,12 +807,12 @@ export const InteractiveLabModal: React.FC<InteractiveLabModalProps> = ({
                             <input
                               type="number"
                               value={curVal}
-                              onChange={(e) => handleSliderChange(input.id, parseFloat(e.target.value) || 0)}
+                              onChange={(e) => handleChange(parseFloat(e.target.value) || 0)}
                               className="w-18 px-1.5 py-0.5 bg-white border border-[#2b2b2b] rounded-lg text-xs font-mono-tech font-bold text-[#111827] text-right focus:outline-none focus:ring-1 focus:ring-[#d8573f]"
                             />
 
                             {/* Unit selector dropdown */}
-                            {availableUnits.length > 1 ? (
+                            {availableUnits.length > 1 && !activeRearrangement ? (
                               <select
                                 value={curUnit}
                                 onChange={(e) => handleVariableUnitChange(input.id, e.target.value)}
@@ -833,9 +838,11 @@ export const InteractiveLabModal: React.FC<InteractiveLabModalProps> = ({
                           min={input.min}
                           max={input.max}
                           step={input.step}
-                          value={curVal}
-                          onChange={(e) => handleSliderChange(input.id, parseFloat(e.target.value))}
-                          className="w-full h-2 bg-[#e5e7eb] rounded-lg appearance-none cursor-pointer accent-[#d8573f]"
+                          value={Math.min(Math.max(curVal, Number(input.min)), Number(input.max))}
+                          onChange={(e) => handleChange(parseFloat(e.target.value))}
+                          className={`w-full h-2 rounded-lg appearance-none cursor-pointer ${
+                            activeRearrangement ? 'bg-[#f8c4b8] accent-[#d8573f]' : 'bg-[#e5e7eb] accent-[#d8573f]'
+                          }`}
                         />
 
                         <div className="flex justify-between text-[9px] text-[#6b7280] font-mono-tech mt-1">
@@ -971,12 +978,13 @@ export const InteractiveLabModal: React.FC<InteractiveLabModalProps> = ({
               {/* Viewer Navigation Tabs */}
               <div className="flex items-center gap-1 bg-[#faf8f0] p-1 rounded-xl border border-[#e5e7eb] flex-wrap">
                 {[
-                  { id: 'simulation', label: '🧪 2D Simulation', icon: Compass },
+                  { id: 'simulation', label: '🧪 Simulation', icon: Compass },
                   { id: 'graph', label: '📈 Graph', icon: TrendingUp },
-                  { id: 'theory', label: '📖 Theory & Proofs', icon: BookOpen },
+                  { id: 'theory', label: '📖 Theory', icon: BookOpen },
+                  { id: 'practice', label: '🎯 Practice', icon: GraduationCap },
                   { id: 'definitions', label: '📑 Definitions', icon: Info },
-                  { id: 'youtube', label: '🎥 YouTube Reference', icon: Video },
-                  { id: 'whatif', label: '✨ What-If & Predict', icon: Lightbulb }
+                  { id: 'youtube', label: '🎥 Videos', icon: Video },
+                  { id: 'whatif', label: '✨ What-If', icon: Lightbulb }
                 ].map(t => {
                   const IconComp = t.icon;
                   const isActive = activeTab === t.id;
@@ -984,7 +992,7 @@ export const InteractiveLabModal: React.FC<InteractiveLabModalProps> = ({
                     <button
                       key={t.id}
                       onClick={() => setActiveTab(t.id as any)}
-                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 flex items-center gap-1.5 cursor-pointer ${
+                      className={`px-2.5 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 flex items-center gap-1.5 cursor-pointer ${
                         isActive
                           ? 'bg-[#2b2b2b] text-white shadow-xs'
                           : 'text-[#6b7280] hover:text-[#111827] hover:bg-white/60'
@@ -1002,17 +1010,62 @@ export const InteractiveLabModal: React.FC<InteractiveLabModalProps> = ({
             {activeTab === 'simulation' && (
               <div className="p-4 flex-1 flex flex-col min-h-[380px]">
                 <div className="flex-1 bg-white border-2 border-[#2b2b2b] rounded-2xl shadow-[3px_3px_0px_#2b2b2b] overflow-hidden flex flex-col p-2 transition-all duration-200">
-                  <Engineering2DLab
-                    formula={formula}
-                    values={interactiveValues}
-                    onValueChange={handleSliderChange}
-                    calculatedValue={typeof calculatedOutput === 'number' ? calculatedOutput : 10}
-                    isPlaying={isPlaying}
-                    simTime={simTime}
-                    onTogglePlay={() => setIsPlaying(!isPlaying)}
-                    onReset={handleReset}
-                    highlightedVariable={lastChangedVar || undefined}
-                  />
+                  {formula.customSimHtml && useCustomSim ? (
+                    <div className="w-full h-full flex-1 flex flex-col min-h-[360px]">
+                      <div className="flex items-center justify-between px-3 py-1.5 bg-[#16213e] text-white text-xs border-b border-[#0f3460] rounded-t-xl shrink-0">
+                        <span className="flex items-center gap-1.5 font-bold text-[#00d4ff]">
+                          <Sparkles className="w-3.5 h-3.5 text-[#00d4ff]" />
+                          AI-Synthesized Interactive Physics Canvas
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setUseCustomSim(false)}
+                            className="text-[10px] text-[#cbd5e1] hover:text-white bg-[#0f3460] hover:bg-[#1a1a2e] px-2 py-0.5 rounded border border-[#00d4ff]/40 transition-colors cursor-pointer"
+                          >
+                            Switch to 2D Physics Lab
+                          </button>
+                        </div>
+                      </div>
+                      <iframe
+                        srcDoc={formula.customSimHtml}
+                        title={`${formula.name} Simulation`}
+                        className="w-full flex-1 border-0 rounded-b-xl"
+                        style={{ minHeight: '340px', backgroundColor: '#1a1a2e' }}
+                        sandbox="allow-scripts allow-same-origin"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-full h-full flex-1 flex flex-col">
+                      {formula.customSimHtml && (
+                        <div className="flex items-center justify-between px-3 py-1 bg-[#faf8f0] border-b border-[#e5e7eb] text-xs mb-1 rounded-t-xl shrink-0">
+                          <span className="text-[11px] font-bold text-[#6b7280]">Standard 2D Physics Lab</span>
+                          <button
+                            onClick={() => setUseCustomSim(true)}
+                            className="text-[10px] text-[#2563eb] font-bold hover:underline cursor-pointer flex items-center gap-1"
+                          >
+                            <Sparkles className="w-3 h-3 text-[#2563eb]" />
+                            View AI Custom Simulation →
+                          </button>
+                        </div>
+                      )}
+                      <Engineering2DLab
+                        formula={formula}
+                        values={activeRearrangement ? { ...interactiveValues, ...calculatorInputs } : interactiveValues}
+                        onValueChange={activeRearrangement ? handleRearrangementInputChange : handleSliderChange}
+                        calculatedValue={
+                          activeRearrangement
+                            ? (typeof solvedRearrangementValue === 'number' ? solvedRearrangementValue : 0)
+                            : (typeof calculatedOutput === 'number' ? calculatedOutput : 10)
+                        }
+                        isPlaying={isPlaying}
+                        simTime={simTime}
+                        onTogglePlay={() => setIsPlaying(!isPlaying)}
+                        onReset={handleReset}
+                        highlightedVariable={lastChangedVar || (activeRearrangement ? activeRearrangement.targetSymbol : undefined)}
+                        activeRearrangementTarget={activeRearrangement?.targetSymbol}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1030,10 +1083,114 @@ export const InteractiveLabModal: React.FC<InteractiveLabModalProps> = ({
               </div>
             )}
 
-            {/* ================= TAB 3: THEORY, PROOFS & PRACTICE ================= */}
+            {/* ================= TAB 3: THEORY & DERIVATION ================= */}
             {activeTab === 'theory' && (
               <div className="p-4 flex-1 space-y-4">
-                
+
+                {/* ---- STEP-BY-STEP DERIVATION (shown first) ---- */}
+                {formula.derivationDetail ? (
+                  <div className="bg-white border-2 border-[#2b2b2b] rounded-2xl shadow-[3px_3px_0px_#2b2b2b] overflow-hidden">
+                    {/* Derivation Header */}
+                    <button
+                      onClick={() => setDerivationExpanded(v => !v)}
+                      className="w-full flex items-center justify-between px-5 py-3.5 bg-gradient-to-r from-[#1d4ed8]/10 to-[#7c3aed]/10 border-b border-[#e5e7eb] cursor-pointer hover:from-[#1d4ed8]/15 hover:to-[#7c3aed]/15 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-lg bg-[#1d4ed8] flex items-center justify-center text-white text-[11px] font-black">∂</span>
+                        <span className="font-display font-black text-xs text-[#111827] uppercase tracking-wider">
+                          {formula.derivationDetail.title || 'Step-by-Step Derivation'}
+                        </span>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 text-[#6b7280] transition-transform duration-200 ${derivationExpanded ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {derivationExpanded && (
+                      <div className="p-5 space-y-4">
+                        {/* Starting Principles & Assumptions Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="bg-[#eff6ff] p-3.5 rounded-xl border border-[#bfdbfe] space-y-1.5">
+                            <div className="text-[11px] font-black text-[#1d4ed8] uppercase tracking-wider">Starting Principles</div>
+                            <ul className="space-y-1">
+                              {(formula.derivationDetail.startingPrinciples || []).map((p, i) => (
+                                <li key={i} className="flex items-start gap-1.5 text-[11px] text-[#1e40af]">
+                                  <span className="font-black shrink-0 mt-0.5">→</span>
+                                  <span>{p}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                          <div className="bg-[#faf5ff] p-3.5 rounded-xl border border-[#e9d5ff] space-y-1.5">
+                            <div className="text-[11px] font-black text-[#7c3aed] uppercase tracking-wider">Key Assumptions</div>
+                            <ul className="space-y-1">
+                              {(formula.derivationDetail.assumptions || []).map((a, i) => (
+                                <li key={i} className="flex items-start gap-1.5 text-[11px] text-[#6d28d9]">
+                                  <span className="font-black shrink-0 mt-0.5">•</span>
+                                  <span>{a}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+
+                        {/* Derivation Steps */}
+                        <div className="space-y-2.5">
+                          <div className="text-[11px] font-black text-[#6b7280] uppercase tracking-wider">Mathematical Progression:</div>
+                          {(formula.derivationDetail.steps || []).map((step, si) => (
+                            <div key={si} className="bg-[#fafafa] border border-[#e5e7eb] rounded-xl p-3.5 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-5 h-5 rounded-full bg-[#1d4ed8] text-white text-[10px] font-black flex items-center justify-center shrink-0">
+                                    {step.stepNumber}
+                                  </span>
+                                  <span className="font-bold text-xs text-[#111827]">{step.title}</span>
+                                </div>
+                                {step.keyPrinciple && (
+                                  <span className="text-[9px] font-bold bg-[#eff6ff] text-[#1d4ed8] border border-[#bfdbfe] px-1.5 py-0.5 rounded-full">
+                                    {step.keyPrinciple}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="bg-white rounded-lg border border-[#e5e7eb] py-2 px-3 text-center overflow-x-auto">
+                                <MathView latex={step.latex} block={false} fallbackText={step.latex} />
+                              </div>
+                              <p className="text-[11px] text-[#4b5563] leading-relaxed">{step.explanation}</p>
+                              {step.mathNotes && (
+                                <p className="text-[10px] text-[#0369a1] italic bg-blue-50 px-2 py-1 rounded-md border border-blue-100">
+                                  📝 {step.mathNotes}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Final Equation */}
+                        {formula.derivationDetail.finalEquationLatex && (
+                          <div className="bg-[#fdfbf7] border-2 border-[#2b2b2b] rounded-xl p-4 text-center space-y-1 shadow-[2px_2px_0px_#2b2b2b]">
+                            <div className="text-[10px] font-black uppercase text-[#6b7280] tracking-wider">Derived Governing Equation</div>
+                            <MathView latex={formula.derivationDetail.finalEquationLatex} block={true} />
+                          </div>
+                        )}
+
+                        {/* Physical Significance */}
+                        {formula.derivationDetail.physicalSignificance && (
+                          <div className="bg-[#f0fdf4] border border-[#86efac] rounded-xl p-3.5 text-xs text-[#166534] space-y-1">
+                            <div className="font-bold">Physical Significance:</div>
+                            <p>{formula.derivationDetail.physicalSignificance}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : formula.derivationSummary ? (
+                  <div className="bg-white border-2 border-[#2b2b2b] rounded-2xl p-4 shadow-[3px_3px_0px_#2b2b2b] space-y-2">
+                    <div className="font-display font-black text-xs text-[#111827] uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-md bg-[#1d4ed8] flex items-center justify-center text-white text-[10px] font-black">∂</span>
+                      <span>Derivation Summary</span>
+                    </div>
+                    <p className="text-xs text-[#4b5563] leading-relaxed">{formula.derivationSummary}</p>
+                  </div>
+                ) : null}
+
                 {/* Governing Assumptions */}
                 {formula.assumptions && formula.assumptions.length > 0 && (
                   <div className="bg-white border-2 border-[#2b2b2b] rounded-2xl p-5 shadow-[3px_3px_0px_#2b2b2b] space-y-2.5">
@@ -1177,7 +1334,198 @@ export const InteractiveLabModal: React.FC<InteractiveLabModalProps> = ({
               </div>
             )}
 
-            {/* ================= TAB 4: DEFINITIONS & GLOSSARY ================= */}
+            {/* ================= TAB 4: PRACTICE (AI QUIZ ENGINE) ================= */}
+            {activeTab === 'practice' && (
+              <div className="p-4 flex-1 space-y-4">
+                {/* Practice Tab Header */}
+                <div className="bg-white border-2 border-[#2b2b2b] rounded-2xl p-4 shadow-[3px_3px_0px_#2b2b2b] space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <GraduationCap className="w-5 h-5 text-[#d8573f]" />
+                      <div>
+                        <div className="font-display font-black text-xs text-[#111827] uppercase tracking-wider">AI-Powered Practice Arena</div>
+                        <p className="text-[10px] text-[#6b7280]">Competitive exam questions generated from this formula's theory</p>
+                      </div>
+                    </div>
+                    {sessionXp > 0 && (
+                      <div className="flex items-center gap-1 px-3 py-1 bg-[#ffdd00] border border-[#2b2b2b] rounded-full text-xs font-black text-[#111827]">
+                        <Trophy className="w-3.5 h-3.5" />
+                        <span>{sessionXp} XP</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Filters & AI Generate */}
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <select
+                      value={quizExamType}
+                      onChange={e => setQuizExamType(e.target.value)}
+                      className="px-2.5 py-1.5 bg-[#faf8f0] border border-[#2b2b2b] rounded-xl text-xs font-bold text-[#111827] focus:outline-none cursor-pointer"
+                    >
+                      {['GATE / ESE Engineering', 'JEE Advanced', 'NCEES FE/PE', 'UPSC ESE', 'GATE CS/IT'].map(e => (
+                        <option key={e}>{e}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={quizDifficulty}
+                      onChange={e => setQuizDifficulty(e.target.value)}
+                      className="px-2.5 py-1.5 bg-[#faf8f0] border border-[#2b2b2b] rounded-xl text-xs font-bold text-[#111827] focus:outline-none cursor-pointer"
+                    >
+                      {['All Difficulties', 'Foundation', 'Medium', 'Advanced', 'Challenger'].map(d => (
+                        <option key={d}>{d}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => handleGenerateAIQuiz()}
+                      disabled={isGeneratingQuiz}
+                      className="flex items-center gap-1.5 px-4 py-1.5 bg-[#ffdd00] hover:bg-[#ffe633] border-2 border-[#2b2b2b] rounded-xl text-xs font-black text-[#000000] shadow-[2px_2px_0px_#2b2b2b] transition-all active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-60 cursor-pointer"
+                    >
+                      <Brain className={`w-3.5 h-3.5 ${isGeneratingQuiz ? 'animate-spin' : ''}`} />
+                      <span>{isGeneratingQuiz ? 'Generating...' : 'Generate AI Questions'}</span>
+                    </button>
+                  </div>
+
+                  {quizGenerationStatus && (
+                    <p className="text-[10px] text-[#d8573f] font-bold animate-pulse">{quizGenerationStatus}</p>
+                  )}
+                </div>
+
+                {/* Quiz Questions List */}
+                {quizList
+                  .filter(q => quizFilterType === 'all' || q.type === quizFilterType)
+                  .map((q, qi) => {
+                    const result = questionResults[q.id];
+                    const isAnswered = !!result;
+                    const hintRevealed = revealedHints[q.id];
+                    const solRevealed = revealedSolutions[q.id];
+
+                    return (
+                      <div key={q.id} className={`bg-white border-2 rounded-2xl p-5 shadow-[3px_3px_0px_#2b2b2b] space-y-3 transition-all ${
+                        isAnswered
+                          ? result.status === 'correct'
+                            ? 'border-green-500'
+                            : 'border-[#d8573f]'
+                          : 'border-[#2b2b2b]'
+                      }`}>
+                        {/* Question Header */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${
+                              q.type === 'MCQ'
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : 'bg-purple-50 text-purple-700 border-purple-200'
+                            }`}>{q.type}</span>
+                            <span className="text-[9px] font-bold bg-[#faf8f0] border border-[#e5e7eb] px-2 py-0.5 rounded-full text-[#6b7280]">
+                              {q.difficulty}
+                            </span>
+                            <span className="text-[9px] font-bold text-[#6b7280]">{q.exam}</span>
+                          </div>
+                          {isAnswered && (
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                              result.status === 'correct'
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-red-100 text-red-700'
+                            }`}>
+                              {result.status === 'correct' ? '✓ Correct (+100 XP)' : '✗ Incorrect'}
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-xs font-medium text-[#111827] leading-relaxed">Q{qi + 1}: {q.question}</p>
+
+                        {/* MCQ Options */}
+                        {q.type === 'MCQ' && q.options && (
+                          <div className="space-y-1.5">
+                            {q.options.map((opt, oi) => {
+                              const chosen = selectedOption[q.id];
+                              const isChosen = chosen === oi;
+                              const isCorrectOpt = oi === q.correctOptionIndex;
+                              return (
+                                <button
+                                  key={oi}
+                                  disabled={isAnswered}
+                                  onClick={() => handleSubmitMCQ(q, oi)}
+                                  className={`w-full p-2.5 text-left text-xs rounded-xl border transition-all cursor-pointer ${
+                                    isChosen && isCorrectOpt ? 'bg-green-50 border-green-500 text-green-800 font-bold'
+                                    : isChosen && !isCorrectOpt ? 'bg-red-50 border-red-400 text-red-800 font-bold'
+                                    : isAnswered && isCorrectOpt ? 'bg-green-50 border-green-300 text-green-700'
+                                    : 'bg-[#faf8f0] border-[#e5e7eb] hover:border-[#2b2b2b] text-[#111827]'
+                                  }`}
+                                >
+                                  {opt}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* NAT Input */}
+                        {q.type === 'NAT' && (
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              placeholder={`Enter numerical value (${q.unit || 'units'})`}
+                              value={numericalInputs[q.id] || ''}
+                              onChange={e => setNumericalInputs(prev => ({ ...prev, [q.id]: e.target.value }))}
+                              disabled={isAnswered}
+                              className="flex-1 px-3 py-2 bg-[#faf8f0] border-2 border-[#2b2b2b] rounded-xl text-xs font-bold font-mono-tech focus:outline-none focus:border-[#d8573f]"
+                            />
+                            {!isAnswered && (
+                              <button
+                                onClick={() => handleSubmitNAT(q)}
+                                className="px-4 py-2 bg-[#2b2b2b] hover:bg-[#d8573f] text-white rounded-xl text-xs font-black shadow-[2px_2px_0px_#2b2b2b] transition-all cursor-pointer"
+                              >
+                                Submit
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Result Feedback */}
+                        {isAnswered && (
+                          <div className={`p-3 rounded-xl text-xs border ${
+                            result.status === 'correct'
+                              ? 'bg-green-50 border-green-300 text-green-800'
+                              : 'bg-red-50 border-red-200 text-red-800'
+                          }`}>
+                            {result.feedback}
+                          </div>
+                        )}
+
+                        {/* Hint & Solution reveal */}
+                        <div className="flex gap-2 flex-wrap pt-1">
+                          <button
+                            onClick={() => setRevealedHints(prev => ({ ...prev, [q.id]: true }))}
+                            className="text-[10px] font-bold text-[#0369a1] hover:underline cursor-pointer"
+                          >
+                            {hintRevealed ? '🔑 Hint:' : '💡 Show Hint'}
+                          </button>
+                          {hintRevealed && (
+                            <span className="text-[11px] text-[#4b5563] flex-1">{q.shortcutTrick}</span>
+                          )}
+                        </div>
+                        {isAnswered && (
+                          <div>
+                            <button
+                              onClick={() => setRevealedSolutions(prev => ({ ...prev, [q.id]: true }))}
+                              className="text-[10px] font-bold text-[#d8573f] hover:underline cursor-pointer"
+                            >
+                              {solRevealed ? '📋 Solution:' : '📖 View Step-by-Step Solution'}
+                            </button>
+                            {solRevealed && (
+                              <div className="mt-2 bg-[#faf8f0] p-3 rounded-xl border border-[#e5e7eb] text-[11px] text-[#4b5563] leading-relaxed">
+                                {q.explanation}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+
+            {/* ================= TAB 5: DEFINITIONS & GLOSSARY ================= */}
             {activeTab === 'definitions' && (
               <div className="p-4 flex-1 space-y-4">
                 

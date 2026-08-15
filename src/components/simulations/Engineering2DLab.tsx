@@ -15,6 +15,8 @@ interface Engineering2DLabProps {
   onTogglePlay: () => void;
   onReset: () => void;
   highlightedVariable?: string;
+  // Rearrangement: when set, the simulation uses these to show the "solved" output state
+  activeRearrangementTarget?: string;  // e.g. "F", "V", "σ" — the symbol being solved for
 }
 
 export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
@@ -26,7 +28,8 @@ export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
   isPlaying,
   onTogglePlay,
   onReset,
-  highlightedVariable
+  highlightedVariable,
+  activeRearrangementTarget,
 }) => {
   const [zoom, setZoom] = useState<number>(1);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -158,12 +161,22 @@ export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
     setActiveHandle(null);
   };
 
+  // Helper to extract effective value for any parameter, taking active rearrangement target into account
+  const getVal = (key: string, fallback: number) => {
+    if (activeRearrangementTarget === key && typeof calculatedValue === 'number' && !isNaN(calculatedValue)) {
+      return calculatedValue;
+    }
+    return values[key] ?? fallback;
+  };
+
   // Render Formula Specific 2D Physics Scene
   const renderSimulationScene = () => {
-    switch (formula.id) {
+    const simKey = formula.simulation?.type || formula.id;
+    switch (simKey) {
       // ----------------------------------------------------
       // 1. NORMAL STRESS SIMULATION (σ = F / A)
       // ----------------------------------------------------
+      case 'normal-stress-axial':
       case 'mech-normal-stress': {
         const force = values['F'] ?? 120;
         const area = values['A'] ?? 0.04;
@@ -269,6 +282,7 @@ export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
       // ----------------------------------------------------
       // 2. BEAM DEFLECTION (Δ = PL³ / 48EI)
       // ----------------------------------------------------
+      case 'beam-deflection-elastic':
       case 'mech-beam-deflection': {
         const loadP = values['P'] ?? 30;
         const spanL = values['L'] ?? 5;
@@ -345,6 +359,7 @@ export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
       // ----------------------------------------------------
       // 3. TORSION IN CIRCULAR SHAFT (τ = Tr / J)
       // ----------------------------------------------------
+      case 'torsional-shear-shaft':
       case 'mech-torsion-shaft': {
         const torque = values['T'] ?? 12;
         const radius = values['r'] ?? 45;
@@ -443,6 +458,7 @@ export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
       // ----------------------------------------------------
       // 4. EULER COLUMN BUCKLING (P_cr = π²EI / (KL)²)
       // ----------------------------------------------------
+      case 'euler-column-buckling':
       case 'civil-euler-buckling': {
         const lengthL = values['L'] ?? 3.5;
         const factorK = values['K'] ?? 1.0;
@@ -513,6 +529,7 @@ export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
       // ----------------------------------------------------
       // 5. HYDROSTATIC PRESSURE (P = ρgh)
       // ----------------------------------------------------
+      case 'hydrostatic-fluid-pressure':
       case 'civil-hydrostatic-pressure': {
         const depthH = values['h'] ?? 10;
         const densityRho = values['ρ'] ?? 1000;
@@ -578,6 +595,7 @@ export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
       // ----------------------------------------------------
       // 6. KINETIC ENERGY (Ek = ½mv²)
       // ----------------------------------------------------
+      case 'kinetic-energy':
       case 'phys-kinetic-energy': {
         const velocity = values['v'] ?? 15;
         const mass = values['m'] ?? 1000;
@@ -651,6 +669,7 @@ export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
       // ----------------------------------------------------
       // 7. OHM'S LAW (V = I * R)
       // ----------------------------------------------------
+      case 'ohms-law':
       case 'elec-ohms-law': {
         const voltage = values['V'] ?? 12;
         const resistance = values['R'] ?? 6;
@@ -736,6 +755,7 @@ export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
       // ----------------------------------------------------
       // 8. AREA OF A CIRCLE (A = πr²)
       // ----------------------------------------------------
+      case 'area-circle':
       case 'math-area-circle': {
         const radius = values['r'] ?? 6;
         const area = calculatedValue || (Math.PI * radius * radius);
@@ -786,6 +806,7 @@ export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
       // ----------------------------------------------------
       // 9. FLEXURAL BENDING STRESS (σ = My / I)
       // ----------------------------------------------------
+      case 'bending-stress-beam':
       case 'mech-bending-stress': {
         const momentM = values['M'] ?? 60;
         const fiberY = values['y'] ?? 120;
@@ -862,6 +883,7 @@ export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
       // ----------------------------------------------------
       // 10. HOOKE'S LAW FOR SPRINGS (F = k * x)
       // ----------------------------------------------------
+      case 'hookes-law-spring':
       case 'phys-hookes-law': {
         const displacementX = values['x'] ?? 14;
         const springK = values['k'] ?? 250;
@@ -945,6 +967,7 @@ export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
       // ----------------------------------------------------
       // 11. ELECTRICAL POWER (P = V * I)
       // ----------------------------------------------------
+      case 'electrical-power':
       case 'elec-electrical-power': {
         const voltage = values['V'] ?? 120;
         const current = values['I'] ?? 5;
@@ -999,6 +1022,7 @@ export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
       // ----------------------------------------------------
       // 12. NEWTON'S SECOND LAW (F = m * a)
       // ----------------------------------------------------
+      case 'force-mass-acceleration':
       case 'phys-newton-second-law': {
         const mass = values['m'] ?? 60;
         const accel = values['a'] ?? 5;
@@ -1053,6 +1077,7 @@ export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
       // ----------------------------------------------------
       // 13. CHEMISTRY & THERMODYNAMICS: IDEAL GAS LAW (PV = nRT)
       // ----------------------------------------------------
+      case 'ideal-gas-law':
       case 'chem-ideal-gas-law': {
         const moles = values['n'] ?? 1.0;
         const temp = values['T'] ?? 300;
@@ -1176,6 +1201,7 @@ export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
       // ----------------------------------------------------
       // 14. MATHEMATICS: PYTHAGOREAN THEOREM (c = √(a² + b²))
       // ----------------------------------------------------
+      case 'pythagorean-theorem':
       case 'math-pythagorean': {
         const a = values['a'] ?? 6;
         const b = values['b'] ?? 8;
@@ -1267,7 +1293,7 @@ export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
         );
       }
 
-      // 13. Bernoulli Fluid Dynamics / Pipe Venturi Flow
+      // 15. Bernoulli Fluid Dynamics / Pipe Venturi Flow
       case 'bernoulli-fluid-flow':
       case 'fluid-dynamics':
       case 'pipe-flow': {
@@ -1591,18 +1617,20 @@ export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
 
       // Default Intelligent Domain-Adaptive Physics Model
       default: {
-        const keys = Object.keys(values);
-        const primaryVal = keys.length > 0 ? (values[keys[0]] ?? 50) : 50;
-        const secondaryVal = keys.length > 1 ? (values[keys[1]] ?? 20) : 20;
+        const keys = formula.variables?.map(v => v.symbol) || Object.keys(values);
+        const primaryKey = keys[0];
+        const secondaryKey = keys[1];
+        const primaryVal = primaryKey ? getVal(primaryKey, 50) : 50;
+        const secondaryVal = secondaryKey ? getVal(secondaryKey, 20) : 20;
 
-        const waveAmplitude = Math.min(45, Math.max(10, (primaryVal / 100) * 35));
-        const waveFreq = Math.min(5, Math.max(1, (secondaryVal / 20) * 3));
+        const waveAmplitude = Math.min(45, Math.max(10, (Math.abs(primaryVal) / 100) * 35));
+        const waveFreq = Math.min(5, Math.max(0.5, (Math.abs(secondaryVal) / 20) * 3));
 
         return (
-          <g transform="translate(80, 160)">
+          <g transform="translate(80, 150)">
             {/* Horizontal Axis Guideline */}
             <line x1="0" y1="0" x2="440" y2="0" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="3 3" />
-            <line x1="0" y1="-90" x2="0" y2="90" stroke="#0f172a" strokeWidth="2" />
+            <line x1="0" y1="-85" x2="0" y2="85" stroke="#0f172a" strokeWidth="2" />
 
             {/* Dynamic Physical Wave / Parameter Response Curve */}
             <path
@@ -1612,7 +1640,7 @@ export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
                 return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
               }).join(' ')}
               fill="none"
-              stroke="#d8573f"
+              stroke={activeRearrangementTarget ? '#d8573f' : '#2563eb'}
               strokeWidth="3.5"
             />
 
@@ -1620,11 +1648,27 @@ export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
             <circle cx="220" cy={-Math.sin((22 * 0.2 * waveFreq) + simTime * 2) * waveAmplitude} r="6" fill="#ffdd00" stroke="#000000" strokeWidth="2" />
 
             {/* Readout Card */}
-            <g transform="translate(220, -70)">
-              <rect x="-100" y="-14" width="200" height="28" rx="14" fill="#ffffff" stroke="#e5e7eb" strokeWidth="1.5" />
+            <g transform="translate(220, -65)">
+              <rect x="-110" y="-15" width="220" height="30" rx="15" fill="#ffffff" stroke="#2b2b2b" strokeWidth="1.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))" />
               <text x="0" y="4" textAnchor="middle" className="font-mono-tech text-xs font-bold fill-[#000000]">
-                {formula.name}: <tspan fill="#d8573f">{calculatedValue.toFixed(2)} {formula.simulation?.outputUnit}</tspan>
+                {activeRearrangementTarget ? `Solved ${activeRearrangementTarget}` : formula.name}: <tspan fill="#d8573f">{calculatedValue.toFixed(2)} {activeRearrangementTarget ? '' : formula.simulation?.outputUnit}</tspan>
               </text>
+            </g>
+
+            {/* Parameter Badges */}
+            <g transform="translate(0, 65)">
+              {keys.slice(0, 4).map((k, idx) => {
+                const val = getVal(k, 0);
+                const isTarget = activeRearrangementTarget === k;
+                return (
+                  <g key={k} transform={`translate(${idx * 110}, 0)`}>
+                    <rect x="0" y="0" width="100" height="22" rx="6" fill={isTarget ? '#fff5eb' : '#ffffff'} stroke={isTarget ? '#d8573f' : '#cbd5e1'} strokeWidth={isTarget ? 1.5 : 1} />
+                    <text x="50" y="14" textAnchor="middle" className="font-mono-tech text-[10px] font-bold" fill={isTarget ? '#d8573f' : '#334155'}>
+                      {k} = {typeof val === 'number' ? val.toFixed(1) : val}
+                    </text>
+                  </g>
+                );
+              })}
             </g>
           </g>
         );
@@ -1728,16 +1772,23 @@ export const Engineering2DLab: React.FC<Engineering2DLabProps> = ({
 
         {/* Live HUD Floating Data Overlay */}
         <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md border border-[#e5e7eb] rounded-2xl px-3 py-2 shadow-sm text-xs pointer-events-none">
-          <div className="text-[10px] text-[#717171] uppercase tracking-wider font-bold">Dynamic Readout</div>
+          <div className="text-[10px] text-[#717171] uppercase tracking-wider font-bold">
+            {activeRearrangementTarget ? 'Rearrangement Solved' : 'Dynamic Readout'}
+          </div>
           <div className="text-sm font-black text-[#000000]">
-            {formula.simulation?.outputLabel.split('(')[0] || 'Result'}: <span className="text-[#d8573f]">{calculatedValue.toFixed(2)} {formula.simulation?.outputUnit}</span>
+            {activeRearrangementTarget
+              ? `Target ${activeRearrangementTarget}: `
+              : `${formula.simulation?.outputLabel.split('(')[0] || 'Result'}: `}
+            <span className="text-[#d8573f]">
+              {typeof calculatedValue === 'number' ? calculatedValue.toFixed(2) : calculatedValue} {activeRearrangementTarget ? '' : formula.simulation?.outputUnit}
+            </span>
           </div>
         </div>
 
         {/* Active Rearranged Highlight Badge */}
-        {highlightedVariable && (
-          <div className="absolute top-3 right-3 bg-[#ffdd00] border border-[#f7d046] text-[#000000] rounded-full px-3 py-1 text-xs font-bold shadow-xs animate-bounce pointer-events-none">
-            🎯 Target Solved: <span className="font-mono-tech underline">{highlightedVariable}</span>
+        {(highlightedVariable || activeRearrangementTarget) && (
+          <div className="absolute top-3 right-3 bg-[#ffdd00] border-2 border-[#2b2b2b] text-[#000000] rounded-full px-3 py-1 text-xs font-black shadow-[2px_2px_0px_#2b2b2b] animate-bounce pointer-events-none">
+            🎯 {activeRearrangementTarget ? `Solving for ${activeRearrangementTarget}` : `Focus: ${highlightedVariable}`}
           </div>
         )}
 

@@ -84,6 +84,8 @@ export type SimulationType =
   | 'kinetic-energy'
   | 'ideal-gas-law'
   | 'thermal-conduction'
+  | 'arrhenius-kinetics'
+  | 'coulomb-electrostatics'
   | 'shannon-entropy'
   | 'binary-conversion'
   | 'generic-interactive';
@@ -244,10 +246,11 @@ export interface Formula {
   practiceProblems: PracticeProblem[];
   prerequisites: string[];
   relatedFormulaIds: string[];
-  diagramDescription: string;
+  diagramDescription?: string;
   categoryAccentColor?: string;
   isVerified?: boolean;
   thinkingTrace?: string[];
+  calculationFn?: (inputs: Record<string, number>) => number;
   
   // Professional Engineering Fields
   relationships?: RelationshipItem[];
@@ -264,6 +267,9 @@ export interface Formula {
   competitiveExamQuestions?: CompetitiveExamQuestion[];
   constants?: FormulaConstant[];
   videoReferences?: VideoReference[];
+
+  // AI-Generated custom simulation (HTML/SVG/Canvas self-contained page)
+  customSimHtml?: string;
 }
 
 export type ActiveTab = 'controls' | 'derivation' | 'graph' | 'theory' | 'competitive' | 'whatif' | 'predict' | 'reference';

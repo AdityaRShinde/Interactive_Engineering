@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import { synthesizeEngineeringFormula } from "./src/utils/formulaKnowledgeSynthesizer";
 
 dotenv.config();
 
@@ -310,173 +311,9 @@ Output MUST be a valid JSON object with EXACTLY this structure (no extra markdow
       }
     }
 
-    // Heuristic Smart Generator Fallback if Gemini key is unset
-    const cleanPrompt = userPrompt.toLowerCase().trim();
-    let detectedSubject = userSubject || "physics";
-    if (cleanPrompt.includes("gas") || cleanPrompt.includes("chem") || cleanPrompt.includes("arrhenius") || cleanPrompt.includes("molar") || cleanPrompt.includes("ph") || cleanPrompt.includes("gibbs")) {
-      detectedSubject = "chemistry";
-    } else if (cleanPrompt.includes("math") || cleanPrompt.includes("triangle") || cleanPrompt.includes("quadratic") || cleanPrompt.includes("fourier") || cleanPrompt.includes("integral") || cleanPrompt.includes("pythagor")) {
-      detectedSubject = "mathematics";
-    } else if (cleanPrompt.includes("beam") || cleanPrompt.includes("stress") || cleanPrompt.includes("gear") || cleanPrompt.includes("torque") || cleanPrompt.includes("reynolds")) {
-      detectedSubject = "mechanical";
-    } else if (cleanPrompt.includes("concrete") || cleanPrompt.includes("soil") || cleanPrompt.includes("retaining") || cleanPrompt.includes("fluid") || cleanPrompt.includes("manning")) {
-      detectedSubject = "civil";
-    } else if (cleanPrompt.includes("volt") || cleanPrompt.includes("current") || cleanPrompt.includes("capacit") || cleanPrompt.includes("induct") || cleanPrompt.includes("impedance") || cleanPrompt.includes("transistor")) {
-      detectedSubject = "electrical";
-    }
-
-    const fallbackFormula = {
-      id: `ai-gen-${Date.now()}`,
-      name: userPrompt.charAt(0).toUpperCase() + userPrompt.slice(1),
-      codeName: userPrompt.toUpperCase().slice(0, 15),
-      topic: `${detectedSubject.toUpperCase()} Analysis & Simulation`,
-      chapter: `Applied ${detectedSubject.charAt(0).toUpperCase() + detectedSubject.slice(1)}`,
-      subject: detectedSubject,
-      level: ['engineering', 'diploma'],
-      formulaLatex: '\\Phi = \\frac{K \\cdot \\alpha}{\\beta^2}',
-      formulaPlain: 'Φ = (K · α) / β²',
-      derivationSummary: `Fundamental governing equation for ${userPrompt} derived from conservation laws and boundary equilibrium.`,
-      realWorldApplication: `Essential in industrial sizing, safety factor evaluation, and performance optimization for ${userPrompt}.`,
-      thinkingTrace: [
-        `Identified ${detectedSubject.toUpperCase()} domain and governing conservation equations for "${userPrompt}"`,
-        `Synthesized primary excitation variable α and resisting dimension β with calibrated engineering bounds`,
-        `Verified dimensional homogeneity and established algebraic rearrangements`,
-        `Designed 2D vector force and kinematic canvas with dynamic parameter sliders`
-      ],
-      variables: [
-        { symbol: 'α', name: 'Primary Driver (Alpha)', unit: 'Units', dimension: '[M L T⁻²]', description: 'Primary excitation or source parameter', defaultValue: 50, min: 5, max: 200, step: 5 },
-        { symbol: 'β', name: 'Resisting Geometry (Beta)', unit: 'm', dimension: '[L]', description: 'Characteristic dimension or resistance', defaultValue: 5, min: 1, max: 20, step: 0.5 },
-        { symbol: 'K', name: 'Coupling Constant (K)', unit: 'coeff', dimension: '[1]', description: 'Empirical material coefficient', defaultValue: 2.5, min: 0.5, max: 10, step: 0.5 }
-      ],
-      simulation: {
-        type: 'generic-interactive',
-        primaryVariable: 'α',
-        secondaryVariable: 'β',
-        outputLabel: `Output (Φ of ${userPrompt})`,
-        outputUnit: 'SI Units',
-        formulaCode: '(K * alpha) / (beta * beta)',
-        customInputs: [
-          { id: 'α', label: 'Primary Driver (α)', symbol: 'α', unit: 'units', min: 5, max: 200, step: 5, defaultValue: 50 },
-          { id: 'β', label: 'Resisting Parameter (β)', symbol: 'β', unit: 'm', min: 1, max: 20, step: 0.5, defaultValue: 5 },
-          { id: 'K', label: 'System Constant (K)', symbol: 'K', unit: 'coeff', min: 0.5, max: 10, step: 0.5, defaultValue: 2.5 }
-        ]
-      },
-      relationships: [
-        { variable: 'α', direction: 'increase', resultEffect: 'Output scales linearly with driver magnitude', mathExpression: 'Φ ∝ α' },
-        { variable: 'β', direction: 'decrease', resultEffect: 'Output diminishes sharply with quadratic resistance', mathExpression: 'Φ ∝ 1/β²' }
-      ],
-      assumptions: [
-        'Homogeneous medium under steady-state continuous operation',
-        'Small perturbation regime with linear response boundaries',
-        'Negligible parasitic dissipative losses at ambient temperature'
-      ],
-      commonMistakes: [
-        'Forgetting the squared exponent in the denominator when computing ratios',
-        'Inconsistent unit prefixes between SI metric and engineering sub-units',
-        'Extrapolating outside the validated empirical regime of constant K'
-      ],
-      dimensionalAnalysis: {
-        equation: 'Φ = (K · α) / β²',
-        unitsBreakdown: '[K]·[α] / [β]² = [1]·[N] / [m²]',
-        finalUnit: 'N/m² (Pascals or Flux)',
-        isConsistent: true
-      },
-      scenarioPresets: [
-        { id: 'preset-standard', name: 'Nominal Benchmark', description: 'Standard operating point', values: { 'α': 50, 'β': 5, 'K': 2.5 } },
-        { id: 'preset-high-drive', name: 'Peak Load Test', description: 'Maximum driving potential', values: { 'α': 120, 'β': 4, 'K': 3.0 } }
-      ],
-      whatIfScenarios: [
-        {
-          title: 'Double the Driver Parameter (α)',
-          prompt: 'What happens to the response if α increases 2× from 50 to 100?',
-          targetValues: { 'α': 100, 'β': 5, 'K': 2.5 },
-          outcomeText: 'Output exactly doubles from 5.00 to 10.00.',
-          insight: 'Linear proportionality ensures directly predictable scaling with input energy.'
-        },
-        {
-          title: 'Halve the Resistance (β)',
-          prompt: 'What happens if the resisting geometry β is halved from 5 to 2.5?',
-          targetValues: { 'α': 50, 'β': 2.5, 'K': 2.5 },
-          outcomeText: 'Output increases by 4× (from 5.00 to 20.00).',
-          insight: 'Inverse square relationship causes steep sensitivity to geometric reduction.'
-        }
-      ],
-      predictionChallenge: {
-        question: `If you double parameter β from 5 to 10 for ${userPrompt}, what happens to output Φ?`,
-        paramToChange: 'β',
-        newValue: 10,
-        options: [
-          { label: 'Reduces to 1/4th (25%)', value: 1.25, isCorrect: true, reason: 'Correct! Inverse square dependency (1/2² = 1/4th).' },
-          { label: 'Halves (50%)', value: 2.5, isCorrect: false, reason: 'Incorrect. β is squared in the denominator.' },
-          { label: 'Doubles (200%)', value: 10, isCorrect: false, reason: 'Incorrect. It is inversely proportional, not direct.' }
-        ]
-      },
-      rearrangements: [
-        {
-          targetSymbol: 'α',
-          targetName: 'Primary Driver',
-          latex: '\\alpha = \\frac{\\Phi \\cdot \\beta^2}{K}',
-          plain: 'α = (Φ * β²) / K',
-          description: 'Solve required driver α to achieve target response Φ',
-          requiredInputs: ['Φ', 'β', 'K'],
-          resultUnit: 'Units'
-        },
-        {
-          targetSymbol: 'β',
-          targetName: 'Resisting Geometry',
-          latex: '\\beta = \\sqrt{\\frac{K \\cdot \\alpha}{\\Phi}}',
-          plain: 'β = sqrt((K * α) / Φ)',
-          description: 'Solve required minimum dimension β to constrain output',
-          requiredInputs: ['K', 'α', 'Φ'],
-          resultUnit: 'm'
-        }
-      ],
-      constants: [
-        { symbol: 'K₀', name: 'Characteristic Scale Factor', value: 2.5, unit: 'dimensionless', description: 'Empirical calibration constant', category: 'physical' }
-      ],
-      videoReferences: [
-        {
-          title: `${userPrompt} - Engineering Fundamentals & Lab`,
-          channel: 'MIT OCW & Visual Physics',
-          youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(userPrompt + ' engineering derivation')}`,
-          description: 'Comprehensive derivation, boundary assumptions, and physical examples.'
-        }
-      ],
-      solvedExamples: [
-        {
-          question: `Calculate Φ when α = 50, β = 5, and K = 2.5 for ${userPrompt}.`,
-          given: { 'α': '50', 'β': '5 m', 'K': '2.5' },
-          formulaUsed: 'Φ = (K · α) / β²',
-          substitution: 'Φ = (2.5 · 50) / 5²',
-          calculation: 'Φ = 125 / 25 = 5.00',
-          finalAnswer: '5.00 SI Units',
-          unit: 'Units',
-          explanation: 'Direct substitution demonstrates consistent exponential dimensional scaling.'
-        }
-      ],
-      conceptQuestions: [],
-      practiceProblems: [
-        {
-          id: 'prac-gen-1',
-          question: `Given α = 80, β = 4, and K = 2.0, determine the output Φ.`,
-          givenValues: { 'α': 80, 'β': 4, 'K': 2.0 },
-          targetVariable: 'Φ',
-          correctAnswer: 10.0,
-          unit: 'Units',
-          tolerance: 0.1,
-          hint: 'Calculate (2.0 × 80) / (4²) = 160 / 16.',
-          solutionSteps: [
-            'Step 1: Compute numerator 2.0 × 80 = 160',
-            'Step 2: Compute denominator 4² = 16',
-            'Step 3: Divide: 160 / 16 = 10.0'
-          ]
-        }
-      ],
-      prerequisites: ['Dimensional Analysis', 'Applied Differential Equations'],
-      relatedFormulaIds: []
-    };
-
-    return res.json({ formula: fallbackFormula, source: "offline_smart_synthesizer" });
+    // Intelligent Engineering Synthesizer & Physics Parser Fallback
+    const synthesizedFormula = synthesizeEngineeringFormula(userPrompt, userSubject);
+    return res.json({ formula: synthesizedFormula, source: "offline_smart_synthesizer" });
   } catch (err: any) {
     console.error("AI Formula Generator Error:", err);
     res.status(500).json({ error: err.message || "Failed to generate formula" });
@@ -623,6 +460,216 @@ Output MUST be a valid JSON array of objects conforming to:
   } catch (err: any) {
     console.error("AI Quiz Generator Error:", err);
     res.status(500).json({ error: err.message || "Failed to generate exam quiz" });
+  }
+});
+
+// AI Simulation Generator Endpoint — generates a unique HTML/SVG/Canvas animation for a formula
+app.post("/api/generate-simulation", async (req, res) => {
+  try {
+    const { formulaName, formulaPlain, variables, subject, realWorldApplication } = req.body;
+
+    if (!formulaName) {
+      return res.status(400).json({ error: "formulaName is required" });
+    }
+
+    const ai = getGeminiClient();
+
+    const varDescriptions = (variables || [])
+      .map((v: any) => `${v.symbol} (${v.name}, ${v.unit}, range ${v.min}–${v.max}, default ${v.defaultValue})`)
+      .join(", ");
+
+    const simPrompt = `You are an expert SVG/Canvas engineering simulator. 
+Your task is to generate a single, self-contained HTML page that provides a UNIQUE, BEAUTIFUL, and PHYSICS-ACCURATE visual simulation for the engineering formula below.
+
+Formula: "${formulaName}"
+Equation: ${formulaPlain}
+Subject: ${subject || "physics/engineering"}
+Real-world application: ${realWorldApplication || "engineering design"}
+Variables: ${varDescriptions}
+
+REQUIREMENTS:
+1. Output ONLY a single complete HTML document (no explanations, no markdown, no code fences).
+2. The simulation MUST visually represent the specific physical phenomenon of THIS formula (not a generic animation).
+   - For stress/force formulas: animate a beam, column, or structural member deforming under load
+   - For fluid formulas: animate fluid flow, pressure gradients, or wave propagation
+   - For electrical formulas: animate current flow, charge, or electromagnetic fields
+   - For kinematic/energy formulas: animate moving objects with physics-accurate trajectories
+   - For thermodynamic formulas: animate heat transfer, gas expansion, or temperature gradients
+   - For mathematical formulas: animate geometric relationships, transformations, or curves
+3. Include HTML range sliders (one for each variable) that update the simulation in real-time via JavaScript.
+4. Use SVG or Canvas for crisp, scalable animations.
+5. Use requestAnimationFrame for smooth 60fps rendering.
+6. Color scheme: dark background (#1a1a2e), accent colors matching the formula domain (use vivid colors like #00d4ff for electrical, #ff6b35 for mechanical, #2ecc71 for civil/structural, #f39c12 for thermodynamics).
+7. Show the live calculated result in a clear display at the top.
+8. Make it visually impressive — arrows, gradients, particle effects where appropriate.
+9. Label all animated elements clearly with white text on dark backgrounds.
+10. The HTML must be fully self-contained (no external dependencies).`;
+
+    if (ai) {
+      try {
+        const result = await generateWithResilience(ai, {
+          contents: simPrompt,
+          config: {
+            temperature: 0.4,
+            maxOutputTokens: 8192,
+          },
+        });
+
+        const text = result.response.text;
+        if (text) {
+          // Extract the HTML content
+          let html = text.trim();
+          // Remove markdown fences if present
+          html = html.replace(/^```html\n?/i, "").replace(/\n?```$/i, "").trim();
+          if (!html.toLowerCase().startsWith("<!doctype") && !html.toLowerCase().startsWith("<html")) {
+            // Try to find the HTML block
+            const htmlMatch = html.match(/(<(!DOCTYPE html|html)[\s\S]*<\/html>)/i);
+            if (htmlMatch) {
+              html = htmlMatch[1];
+            }
+          }
+          return res.json({ html, source: result.model });
+        }
+      } catch (simErr: any) {
+        console.warn("Gemini simulation generation failed:", simErr?.message);
+      }
+    }
+
+    // Fallback: Generate a simple but functional SVG simulation
+    const fallbackHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>${formulaName} Simulation</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; color: #fff; font-family: 'Courier New', monospace; padding: 20px; }
+  h2 { color: #00d4ff; margin-bottom: 8px; font-size: 16px; }
+  .result { background: #0f3460; border: 1px solid #00d4ff; border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+  .result-value { font-size: 28px; font-weight: bold; color: #ff6b35; }
+  canvas { border: 1px solid #333; border-radius: 8px; display: block; margin: 10px auto; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+  .control-group { flex: 1; min-width: 150px; background: #16213e; padding: 10px; border-radius: 8px; }
+  label { font-size: 11px; color: #aaa; display: block; margin-bottom: 4px; }
+  input[type=range] { width: 100%; accent-color: #00d4ff; }
+  .val { color: #00d4ff; font-weight: bold; font-size: 13px; }
+</style>
+</head>
+<body>
+<h2>⚡ ${formulaName}</h2>
+<div class="result">
+  <div style="font-size:11px; color:#aaa; margin-bottom:4px;">Live Calculation: ${formulaPlain}</div>
+  <span class="result-value" id="output">—</span>
+</div>
+<canvas id="sim" width="500" height="250"></canvas>
+<div class="controls" id="controls"></div>
+
+<script>
+const vars = ${JSON.stringify((variables || []).slice(0, 4).map((v: any) => ({
+  id: v.symbol, label: `${v.name} (${v.symbol})`, min: v.min, max: v.max, step: v.step, val: v.defaultValue, unit: v.unit
+})))};
+
+const state = {};
+vars.forEach(v => { state[v.id] = v.val; });
+
+const controls = document.getElementById('controls');
+vars.forEach(v => {
+  const g = document.createElement('div');
+  g.className = 'control-group';
+  g.innerHTML = \`<label>\${v.label}</label><input type="range" min="\${v.min}" max="\${v.max}" step="\${v.step}" value="\${v.val}" oninput="update('\${v.id}', this.value, this.nextElementSibling)"><span class="val">\${v.val} \${v.unit}</span>\`;
+  controls.appendChild(g);
+});
+
+function update(id, val, span) {
+  state[id] = parseFloat(val);
+  if (span) span.textContent = val + ' ' + (vars.find(v=>v.id===id)?.unit||'');
+  calculate();
+  draw();
+}
+
+function calculate() {
+  const keys = Object.keys(state);
+  let result = 'N/A';
+  try {
+    const vals = Object.values(state).filter(v => !isNaN(v));
+    if (vals.length >= 2) result = (vals[0] / Math.max(vals[1], 0.001)).toFixed(4);
+  } catch(e) {}
+  document.getElementById('output').textContent = result;
+  return parseFloat(result) || 0;
+}
+
+const canvas = document.getElementById('sim');
+const ctx = canvas.getContext('2d');
+
+function draw() {
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  
+  const grad = ctx.createLinearGradient(0, 0, w, h);
+  grad.addColorStop(0, '#0f0c29');
+  grad.addColorStop(1, '#302b63');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+
+  const keys = Object.keys(state);
+  const v1 = state[keys[0]] || 1;
+  const v2 = state[keys[1]] || 1;
+  const ratio = Math.min(v1 / (v1 + v2), 1);
+
+  // Draw dynamic bar representing ratio
+  const barH = 40;
+  const barY = h/2 - barH/2;
+  ctx.fillStyle = '#16213e';
+  ctx.fillRect(40, barY, w-80, barH);
+  const barGrad = ctx.createLinearGradient(40, 0, w-80, 0);
+  barGrad.addColorStop(0, '#00d4ff');
+  barGrad.addColorStop(1, '#ff6b35');
+  ctx.fillStyle = barGrad;
+  ctx.fillRect(40, barY, (w-80) * ratio, barH);
+  
+  ctx.strokeStyle = '#00d4ff';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(40, barY, w-80, barH);
+
+  // Arrows
+  const arrowX = 40 + (w-80) * ratio;
+  ctx.fillStyle = '#ffdd00';
+  ctx.beginPath();
+  ctx.moveTo(arrowX, barY - 10);
+  ctx.lineTo(arrowX - 8, barY - 25);
+  ctx.lineTo(arrowX + 8, barY - 25);
+  ctx.closePath();
+  ctx.fill();
+
+  // Labels
+  ctx.fillStyle = '#aaa';
+  ctx.font = '11px Courier New';
+  ctx.fillText(keys[0] + ': ' + v1.toFixed(2), 40, barY - 30);
+  ctx.fillText(keys[1] + ': ' + v2.toFixed(2), w - 150, barY - 30);
+  
+  // Formula label
+  ctx.fillStyle = '#00d4ff';
+  ctx.font = 'bold 12px Courier New';
+  ctx.fillText('${formulaPlain}', w/2 - 80, h - 20);
+}
+
+calculate();
+draw();
+let t = 0;
+function animate() {
+  t += 0.02;
+  draw();
+  requestAnimationFrame(animate);
+}
+animate();
+</script>
+</body>
+</html>`;
+
+    return res.json({ html: fallbackHtml, source: "offline_fallback_sim" });
+  } catch (err: any) {
+    console.error("Simulation Generator Error:", err);
+    res.status(500).json({ error: err.message || "Failed to generate simulation" });
   }
 });
 
