@@ -52,12 +52,11 @@ jobs:
         env:
           CI: false
 
-      - name: 🔄 Sync Capacitor Android Platform
+      - name: 🔄 Copy Web Assets to Android Platform
         run: |
-          mkdir -p android/capacitor-cordova-android-plugins/src/main/libs
           mkdir -p android/app/src/main/assets/public
+          npx cap copy android
           chmod +x ./android/gradlew
-          npx cap sync android
 
       # -----------------------------------------------------------
       # BUILD DEBUG APK (always available for instant installation)
