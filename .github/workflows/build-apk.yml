@@ -1,0 +1,133 @@
+name: Build and Release Android APK
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type (debug or release)'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - debug
+          - release
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-apk:
+    name: 📱 Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Set up Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: ☕ Set up Java JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 21
+          cache: 'gradle'
+
+      - name: 📦 Install Node Dependencies
+        run: npm ci
+
+      - name: 🔨 Build Vite Web Application
+        run: npm run build:web
+
+      - name: 🔄 Sync Capacitor Android Platform
+        run: npx cap sync android
+
+      - name: 🔑 Grant Execute Permission for Gradle Wrapper
+        run: chmod +x ./android/gradlew
+
+      # -----------------------------------------------------------
+      # BUILD DEBUG APK (always available for instant installation)
+      # -----------------------------------------------------------
+      - name: 🛠️ Build Android Debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --stacktrace
+
+      # -----------------------------------------------------------
+      # BUILD RELEASE APK (for tags or release workflow dispatch)
+      # -----------------------------------------------------------
+      - name: 🚀 Build Android Release APK
+        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.build_type == 'release'
+        run: |
+          cd android
+          ./gradlew assembleRelease --stacktrace
+
+      # -----------------------------------------------------------
+      # PREPARE & RENAME APK ARTIFACTS
+      # -----------------------------------------------------------
+      - name: 📂 Prepare APK Output Directory
+        run: |
+          mkdir -p release-apks
+          
+          # Copy Debug APK
+          if [ -f "android/app/build/outputs/apk/debug/app-debug.apk" ]; then
+            cp android/app/build/outputs/apk/debug/app-debug.apk release-apks/InteractiveEngineering-debug.apk
+          fi
+          
+          # Copy Release APK (or sign if unsigned)
+          if [ -f "android/app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
+            cp android/app/build/outputs/apk/release/app-release-unsigned.apk release-apks/InteractiveEngineering-release-unsigned.apk
+          elif [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk release-apks/InteractiveEngineering-release.apk
+          fi
+
+          ls -lah release-apks/
+
+      # -----------------------------------------------------------
+      # UPLOAD APK TO GITHUB ACTIONS ARTIFACTS
+      # -----------------------------------------------------------
+      - name: 📤 Upload APK Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: InteractiveEngineering-Android-APK
+          path: release-apks/*
+          retention-days: 30
+
+      # -----------------------------------------------------------
+      # CREATE GITHUB RELEASE WHEN TAGGED (e.g. git tag v1.0.0)
+      # -----------------------------------------------------------
+      - name: 🏷️ Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-apks/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          name: Interactive Engineering ${{ github.ref_name }}
+          body: |
+            ## 🚀 Interactive Engineering Android Release
+            
+            ### 📱 Download & Install:
+            - **Debug APK (Instant Install)**: `InteractiveEngineering-debug.apk`
+            - **Release APK**: `InteractiveEngineering-release-unsigned.apk`
+            
+            ### ✨ Features Included:
+            - 🔬 17+ Interactive STEM & Engineering Simulation Laboratories
+            - 🧠 AI Formula Synthesizer with Verified Physical Parameters & Derivations
+            - 🔄 Real-time Formula Rearrangement & Kinematic Vector Engine
+            - 🏆 AI Competitive Exam Practice Arena (GATE / FE / JEE / PE)
+            - 📐 Free-Body Diagram Vector Canvas & Dynamic SI Calculator
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
