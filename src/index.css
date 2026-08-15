@@ -1,0 +1,190 @@
+@import "tailwindcss";
+
+@theme {
+  --color-cream-paper: #faf8f0;
+  --color-card-white: #ffffff;
+  --color-hairline-gray: #e5e7eb;
+  --color-ink-black: #000000;
+  --color-charcoal: #222222;
+  --color-fog-gray: #717171;
+  --color-marigold: #ffdd00;
+  --color-buttercup: #f7d046;
+  --color-terracotta: #d8573f;
+  --color-blush-border: #f5d5cf;
+}
+
+:root {
+  --bg-color: #faf8f0;
+  --surface-color: #ffffff;
+  --border-color: #e5e7eb;
+  --text-primary: #000000;
+  --text-body: #222222;
+  --text-muted: #717171;
+  --accent-yellow: #ffdd00;
+  --accent-terracotta: #d8573f;
+  --accent-blush: #f5d5cf;
+}
+
+@layer base {
+  body {
+    background-color: #faf8f0;
+    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #222222;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+.font-mono-tech {
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, Menlo, monospace;
+}
+
+.font-display {
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  letter-spacing: -0.03em;
+}
+
+/* BuyMeACoffee Café Paper Card & 3-Layer Shadow */
+.bmac-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 24px;
+  box-shadow: rgba(0, 0, 0, 0.12) 0px 0px 2px 0px, rgba(0, 0, 0, 0.04) 0px 8px 32px 0px, rgba(0, 0, 0, 0.04) 0px 2px 6px 0px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.bmac-card:hover {
+  border-color: #d1d5db;
+  box-shadow: rgba(0, 0, 0, 0.15) 0px 0px 2px 0px, rgba(0, 0, 0, 0.06) 0px 12px 40px 0px, rgba(0, 0, 0, 0.05) 0px 4px 10px 0px;
+}
+
+.bmac-card-compact {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  box-shadow: rgba(0, 0, 0, 0.08) 0px 0px 2px 0px, rgba(0, 0, 0, 0.03) 0px 4px 16px 0px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.bmac-card-compact:hover {
+  transform: translateY(-2px);
+  border-color: #222222;
+  box-shadow: rgba(0, 0, 0, 0.12) 0px 0px 2px 0px, rgba(0, 0, 0, 0.06) 0px 8px 24px 0px;
+}
+
+.bmac-modal {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 32px;
+  box-shadow: rgba(0, 0, 0, 0.15) 0px 0px 2px 0px, rgba(0, 0, 0, 0.08) 0px 16px 48px 0px, rgba(0, 0, 0, 0.05) 0px 4px 12px 0px;
+}
+
+.bmac-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.125em;
+  text-transform: uppercase;
+  color: #222222;
+}
+
+/* Range Sliders */
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  background: transparent;
+}
+
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 18px;
+  width: 18px;
+  border-radius: 9999px;
+  background: #000000;
+  border: 2px solid #ffffff;
+  cursor: pointer;
+  margin-top: -6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.1s ease, background-color 0.1s ease;
+}
+
+input[type=range]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  background: #d8573f;
+}
+
+input[type=range]::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 6px;
+  cursor: pointer;
+  background: #f0ede1;
+  border-radius: 9999px;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent; 
+}
+
+::-webkit-scrollbar-thumb {
+  background: #e5e7eb; 
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #d1d5db; 
+}
+
+/* Numeric & Value Transition Animations */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.transition-value {
+  transition: color 0.2s ease-out, background-color 0.25s ease-out, border-color 0.25s ease-out, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease-out;
+}
+
+.transition-smooth {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes value-glow-pulse {
+  0% {
+    transform: scale(1.03);
+    box-shadow: 0 0 0 4px rgba(216, 87, 63, 0.25), 3px 3px 0px #000000;
+  }
+  50% {
+    transform: scale(1.015);
+    box-shadow: 0 0 0 2px rgba(216, 87, 63, 0.15), 2.5px 2.5px 0px #000000;
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0px rgba(216, 87, 63, 0), 2px 2px 0px #2b2b2b;
+  }
+}
+
+@keyframes result-number-flash {
+  0% {
+    color: #ff3b19;
+    transform: translateY(-1px) scale(1.04);
+  }
+  100% {
+    color: #d8573f;
+    transform: translateY(0px) scale(1);
+  }
+}
+
+.animate-value-pulse {
+  animation: value-glow-pulse 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-result-flash {
+  animation: result-number-flash 0.25s ease-out;
+}
+

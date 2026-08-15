@@ -1,0 +1,6 @@
+{
+  "name": "Interactive Engineering",
+  "description": "Interactive Engineering formula laboratory & 2D physics simulation platform with rearrangeable calculators, unit system conversion, dynamic sensitivity graphs, and AI formula generation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
