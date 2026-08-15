@@ -52,11 +52,12 @@ jobs:
         env:
           CI: false
 
-      - name: 🔑 Grant Execute Permission for Gradle Wrapper
-        run: chmod +x ./android/gradlew
-
       - name: 🔄 Sync Capacitor Android Platform
-        run: npx @capacitor/cli sync android
+        run: |
+          mkdir -p android/capacitor-cordova-android-plugins/src/main/libs
+          mkdir -p android/app/src/main/assets/public
+          chmod +x ./android/gradlew
+          npx cap sync android
 
       # -----------------------------------------------------------
       # BUILD DEBUG APK (always available for instant installation)
