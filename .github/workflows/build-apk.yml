@@ -52,11 +52,11 @@ jobs:
         env:
           CI: false
 
-      - name: 🔄 Sync Capacitor Android Platform
-        run: npx @capacitor/cli sync android
-
       - name: 🔑 Grant Execute Permission for Gradle Wrapper
         run: chmod +x ./android/gradlew
+
+      - name: 🔄 Sync Capacitor Android Platform
+        run: npx @capacitor/cli sync android
 
       # -----------------------------------------------------------
       # BUILD DEBUG APK (always available for instant installation)
