@@ -45,13 +45,15 @@ jobs:
           cache: 'gradle'
 
       - name: 📦 Install Node Dependencies
-        run: npm ci
+        run: npm install
 
       - name: 🔨 Build Vite Web Application
         run: npm run build:web
+        env:
+          CI: false
 
       - name: 🔄 Sync Capacitor Android Platform
-        run: npx cap sync android
+        run: npx @capacitor/cli sync android
 
       - name: 🔑 Grant Execute Permission for Gradle Wrapper
         run: chmod +x ./android/gradlew
